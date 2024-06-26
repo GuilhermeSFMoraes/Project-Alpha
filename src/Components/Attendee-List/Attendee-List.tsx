@@ -7,40 +7,105 @@ import { Table } from '../Table/Table';
 import { TableHeader } from '../Table/Table-Header';
 import { TableCell } from '../Table/Table-Cell';
 import { TableRow } from '../Table/Table-Row';
-import { ChangeEvent, useState } from 'react';
-import { attendees } from '../../Data/Attendees';
+import { ChangeEvent, useEffect, useState } from 'react';
+import { ur } from '@faker-js/faker';
+
 
 dayjs.extend(relativeTime);
 dayjs.locale('pt-br')
 
-export const AttendeeList = () => {
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1)
+interface IAttende {
+    id: string,
+    name: string,
+    email: string,
+    createdAt: string,
+    checkedInAt: string | null
+}
 
-    const totalPage = Math.ceil(attendees.length / 10)
+export const AttendeeList = () => {
+    const [search, setSearch] = useState(() => {
+        const url = new URL(window.location.toString());
+        
+        if (url.searchParams.has('search')) {
+            return url.searchParams.get('search') ?? '';
+        }
+
+        return 1
+    });
+    const [page, setPage] = useState(() => {
+        const url = new URL(window.location.toString());
+        
+        if (url.searchParams.has('page')) {
+            return Number(url.searchParams.get('page'));
+        }
+
+        return 1
+    })
+    const [attendees, setAttendees] = useState<IAttende[]>([])
+    const [total, setTotal] = useState(0);
+
+    useEffect(() => {
+        const url = new URL('http://localhost:3333/events/9e9bd979-9d10-4915-b339-3786b1634f33/attendees');
+
+        url.searchParams.set('pageIndex', String(page - 1));
+        
+        if (search.length > 0) {
+            url.searchParams.set('query', search)
+        }
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                console.log(data)
+                setAttendees(data.attendees)
+                setTotal(data.total);
+            })
+    }, [page, search])
+
+    const setCurrentSearch = (search: string) => {
+        const url = new URL(window.location.toString());
+
+        url.searchParams.set('search', search);
+
+        window.history.pushState({}, '', url);
+
+        setSearch(search);
+    }
+
+    const setCurrentPage = (page:number) => {
+        const url = new URL(window.location.toString());
+
+        url.searchParams.set('page', String(page));
+
+        window.history.pushState({}, '', url);
+
+        setPage(page)
+    }
+
+    const totalPage = Math.ceil(total / 10)
 
     const onSearchInputChanged = (e: ChangeEvent<HTMLInputElement>) => {
-
-        setSearch(e.target.value);
+        setCurrentSearch(e.target.value);
+        setCurrentPage(1);
     };
 
     const goToFirstPage = () => {
-        setPage(1);
+        setCurrentPage(1)
     }
 
     const goToNextPage = () => {
-        setPage(page + 1);
+        setCurrentPage(page + 1)
     };
 
     const goToPreviousPage = () => {
         if (page === 1) {
             return;
         }
-        setPage(page - 1);
+        setCurrentPage(page - 1);
     };
 
     const goToLastPage = () => {
-        setPage(totalPage);
+        setAttendees(totalPage)
     }
 
     return (
@@ -49,7 +114,7 @@ export const AttendeeList = () => {
                 <h1 className="text-2xl">Participantes</h1>
                 <div className="px-3 w-72 py-1.5 border border-white/10 rounded-lg text-sm flex items-center gap-3">
                     <Search className="size-4" />
-                    <input onChange={onSearchInputChanged} className="bg-transparent flex-1 outline-none border-0 p-0 text-sm" type="text" placeholder="Buscar participante..." />
+                    <input onChange={onSearchInputChanged} className="bg-transparent flex-1 outline-none border-0 p-0 text-sm focus:ring-0" type="text" placeholder="Buscar participante..." value={search}/>
                 </div>
             </div>
 
@@ -67,7 +132,7 @@ export const AttendeeList = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {attendees.slice((page - 1) * 10, page * 10).map((attendee) => {
+                    {attendees.map((attendee) => {
                         return (
                             <TableRow key={attendee.id} >
                                 <TableCell>
@@ -80,8 +145,11 @@ export const AttendeeList = () => {
                                         <span>{attendee.email}</span>
                                     </div>
                                 </TableCell>
-                                <TableCell>{dayjs().to(attendee.createAt)}</TableCell>
-                                <TableCell>{dayjs().to(attendee.createInAt)}</TableCell>
+                                <TableCell>{dayjs().to(attendee.createdAt)}</TableCell>
+                                <TableCell>{attendee.checkedInAt === null
+                                    ? <span className='text-zinc-500'>'Não fez check-in'</span>
+                                    : dayjs().to(attendee.checkedInAt)}
+                                </TableCell>
                                 <TableCell>
                                     <IconButton trasparent={true} >
                                         <MoreHorizontal className='size-4' />
@@ -94,7 +162,7 @@ export const AttendeeList = () => {
                 <tfoot>
                     <tr className='border border-white/10 rounded-lg'>
                         <TableCell className='py-3 px-4 text-sm text-zinc-300' colSpan={3}>
-                            Mostrando 10 de {attendees.length} itens
+                            Mostrando {attendees.length} de {total} itens
                         </TableCell>
                         <TableCell className='text-right' colSpan={3}>
                             <div className='inline-flex items-center gap-8'>
